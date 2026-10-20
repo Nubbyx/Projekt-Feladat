@@ -1,13 +1,7 @@
-﻿using System.Text;
+﻿using Models;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace Frontend
 {
@@ -16,9 +10,26 @@ namespace Frontend
     /// </summary>
     public partial class MainWindow : Window
     {
+        private readonly HttpClient _http = new HttpClient { BaseAddress = new Uri("https://localhost:7226") };
+
+        private List<Note> _allNotes = new List<Note>();
+
         public MainWindow()
         {
             InitializeComponent();
+        }
+
+        private async Task LoadNotesAsync()
+        {
+            try
+            {
+                var notes = await _http.GetFromJsonAsync<List<Note>>("api/ideas");
+                _allNotes = notes ?? new List<Note>();
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show(e.Message, "Hiba", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 }
