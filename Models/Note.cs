@@ -15,6 +15,9 @@ namespace Models
         [Required]
         public string? Content { get; set; } // MEDIUMTEXT
 
+        public int? FolderId { get; set; } // Nullable: egy jegyzet nem kötelezően van mappában
+        public Folder? Folder { get; set; }
+
         public List<Attachment> Attachments { get; set; } = new();
 
 
