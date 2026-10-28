@@ -11,7 +11,13 @@
     <Grid>
         <Grid.ColumnDefinitions>
             
+            <ColumnDefinition Width="60" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+
         </Grid.ColumnDefinitions>
+        
+        
 
     </Grid>
 </Window>

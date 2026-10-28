@@ -28,6 +28,23 @@ namespace API.Controllers
         }
 
         [HttpPost("{folderId}")]
+        public IActionResult CreateFolder(int folderId,Folder folder)
+        {
+            if (folder == null || string.IsNullOrWhiteSpace(folder.FolderName))
+            {
+                return BadRequest("Folder name is required.");
+            }
+            db.Folders.Add(folder);
+            db.SaveChanges();
+            return Ok(new
+            {
+                message = "Folder created successfully.",
+                folder.FolderId,
+                folder.FolderName
+            });
+        }
+
+
         
 
 
