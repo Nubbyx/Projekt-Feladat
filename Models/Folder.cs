@@ -13,7 +13,6 @@ namespace Models
         public int FolderId { get; set; }
 
         [Required, StringLength(50, MinimumLength =1)]
-
         public string? FolderName { get; set; }
 
         public List<Note> Notes { get; set; } = new List<Note>();

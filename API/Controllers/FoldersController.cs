@@ -17,18 +17,19 @@ namespace API.Controllers
             db = new AppDbContext();
         }
 
-        [HttpGet]
-        public IActionResult GetFolders()
+        [HttpGet("{FolderId}")]
+        public IActionResult GetFolders(int FolderId)
         {
-            //var folders = db.Notes.Select(n => n.Folder).Distinct().ToList();
-            return Ok(db.Folders
-                .OrderBy(f => f.FolderName)
-                .Select(f => new { f.FolderId, f.FolderName, NoteCount = f.Notes.Count() })
-                .ToList());
+            var folder = db.Folders.FirstOrDefault(f => f.FolderId == FolderId);
+            if (folder == null)
+            {
+                return NotFound("Folder not found.");
+            }
+            return Ok(folder);
         }
 
-        [HttpPost("{folderId}")]
-        public IActionResult CreateFolder(int folderId,Folder folder)
+        [HttpPost]
+        public IActionResult CreateFolders(Folder folder)
         {
             if (folder == null || string.IsNullOrWhiteSpace(folder.FolderName))
             {
@@ -39,13 +40,43 @@ namespace API.Controllers
             return Ok(new
             {
                 message = "Folder created successfully.",
-                folder.FolderId,
                 folder.FolderName
             });
         }
 
+        [HttpDelete("{FolderId}")]
+        public IActionResult DeleteFolder(int FolderId)
+        {
+            var folder = db.Folders.FirstOrDefault(f => f.FolderId == FolderId);
+            if (folder == null)
+            {
+                return NotFound("Folder not found.");
+            }
+            db.Folders.Remove(folder);
+            db.SaveChanges();
+            return Ok(new
+            {
+                message = "Folder deleted successfully.",
+                folder.FolderName
+            });
+        }
 
-        
+        [HttpGet("{FolderId}/notes")]
+        public IActionResult GetNotesFromFolder(int FolderId)
+        {
+            var folder = db.Folders.FirstOrDefault(f => f.FolderId == FolderId);
+            if (folder == null)
+            {
+                return NotFound("Folder not found.");
+            }
+            var notes = db.Notes.Where(n => n.FolderId == FolderId).ToList();
+            return Ok(notes);
+        }
+
+
+
+
+
 
 
     }
