@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261020124000_Mig")]
+    [Migration("20261104091439_Mig")]
     partial class Mig
     {
         /// <inheritdoc />
@@ -46,6 +46,22 @@ namespace API.Migrations
                     b.ToTable("Attachments");
                 });
 
+            modelBuilder.Entity("Models.Folder", b =>
+                {
+                    b.Property<int>("FolderId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("FolderName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("FolderId");
+
+                    b.ToTable("Folders");
+                });
+
             modelBuilder.Entity("Models.Note", b =>
                 {
                     b.Property<int>("NoteId")
@@ -56,12 +72,17 @@ namespace API.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<int?>("FolderId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
                     b.HasKey("NoteId");
+
+                    b.HasIndex("FolderId");
 
                     b.ToTable("Notes");
                 });
@@ -73,6 +94,20 @@ namespace API.Migrations
                         .HasForeignKey("NoteId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Models.Note", b =>
+                {
+                    b.HasOne("Models.Folder", "Folder")
+                        .WithMany("Notes")
+                        .HasForeignKey("FolderId");
+
+                    b.Navigation("Folder");
+                });
+
+            modelBuilder.Entity("Models.Folder", b =>
+                {
+                    b.Navigation("Notes");
                 });
 
             modelBuilder.Entity("Models.Note", b =>

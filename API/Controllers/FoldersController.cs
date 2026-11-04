@@ -1,7 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using API.Data;
 using Microsoft.AspNetCore.Mvc;
 using Models;
-using API.Data;
 
 namespace API.Controllers
 {
@@ -31,10 +30,6 @@ namespace API.Controllers
         [HttpPost]
         public IActionResult CreateFolders(Folder folder)
         {
-            if (folder == null || string.IsNullOrWhiteSpace(folder.FolderName))
-            {
-                return BadRequest("Folder name is required.");
-            }
             db.Folders.Add(folder);
             db.SaveChanges();
             return Ok(new
