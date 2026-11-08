@@ -27,14 +27,14 @@ namespace API.Controllers
         {
             if (file == null || file.Length == 0)
             {
-                return BadRequest("No file uploaded.");
+                return BadRequest("Nincs file csatolva.");
             }
 
             var note = await db.Notes.Include(n => n.Attachments).FirstOrDefaultAsync(n => n.NoteId == noteId);
 
             if (note == null)
             {
-                return NotFound("Note not found.");
+                return NotFound("A jegyzet nem található.");
             }
 
             byte[] fileBytes;
@@ -57,7 +57,7 @@ namespace API.Controllers
 
             return Ok(new
             {
-                message = "Attachment uploaded successfully.",
+                message = "Csatolmány sikeresen létrehozva!",
                 attachment.AttachmentId,
                 attachment.Name
             });
