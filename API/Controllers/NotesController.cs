@@ -31,10 +31,50 @@ namespace API.Controllers
 
             return Ok(new
             {
-                message = "Attachment created successfully.",
+                message = "Jegyzet sikeresen létrehozva!",
                 note.NoteId,
                 note.Title
             });
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateNote(int id, [FromBody] Note updatedNote)
+        {
+            var existingNote = await db.Notes.FindAsync(id);
+
+            if (existingNote == null)
+            {
+                return NotFound(new { message = "A jegyzet nem található." });
+            }
+
+            existingNote.Title = updatedNote.Title;
+            existingNote.Content = updatedNote.Content;
+            existingNote.FolderId = updatedNote.FolderId;
+
+            await db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Jegyzet sikeresen frissítve.",
+                existingNote.NoteId,
+                existingNote.Title
+            });
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteNote(int id)
+        {
+            var note = await db.Notes.FindAsync(id);
+
+            if (note == null)
+            {
+                return NotFound(new { message = "A jegyzet nem található." });
+            }
+
+            db.Notes.Remove(note);
+            await db.SaveChangesAsync();
+
+            return Ok(new { message = "Jegyzet sikeresen törölve." });
         }
     }
 }
