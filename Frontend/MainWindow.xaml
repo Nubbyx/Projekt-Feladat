@@ -162,5 +162,44 @@
                  BorderThickness="0"
                  FontSize="16"
                  Padding="24"/>
+        
+
+        <Border 
+        Grid.Column="1" Grid.Row="1" Margin="0,10,0,0" Padding="10"
+        Background="#FFFBF5" BorderBrush="#C9AE8E" BorderThickness="1"
+        CornerRadius="5">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,8">
+                    <TextBlock Text="Csatolmányok" FontSize="16" FontWeight="SemiBold"
+                       Foreground="#493629" VerticalAlignment="Center"/>
+                    <Button Content="＋ Fájl csatolása" DockPanel.Dock="Right"
+                    Padding="10,5" Background="#A77C55" Foreground="#FFFBF5"
+                    BorderBrush="#8E6848" Click="AddAttachment_Click"
+                   />
+                </DockPanel>
+                <ListBox ItemsSource="{Binding CurrentNote.Attachments}"
+                 MinHeight="55" MaxHeight="125"
+                 Background="#FFF9F0" Foreground="#4A3426"
+                 BorderBrush="#C9AE8E">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel Margin="4">
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                                    <Button Content="Letöltés" Margin="3,0" Padding="7,3"
+                                    Background="#D8C1A5" Foreground="#4A3426"
+                                    Click="DownloadAttachment_Click"/>
+                                    <Button Content="Törlés" Margin="3,0" Padding="7,3"
+                                    Background="#A67B5B" Foreground="#3F2D25"
+                                    Click="DeleteAttachment_Click"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+        </Border>
+        
     </Grid>
 </Window>
