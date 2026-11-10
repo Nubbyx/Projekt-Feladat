@@ -122,5 +122,16 @@ namespace API.Controllers
 
             return Ok(new { message = "Csatolmány sikeresen törölve." });
         }
+
+        // GET api/attachments/count
+        // Saját függvény
+        // Csoda, ha jövőre nem bukok meg a vizsgán #1 - Örs
+        [HttpGet("count")]
+        public async Task<IActionResult> CountAttachments()
+        {
+            var count = await db.Attachments.CountAsync();
+
+            return Ok(count);
+        }
     }
 }

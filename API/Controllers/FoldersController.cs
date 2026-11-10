@@ -96,5 +96,16 @@ namespace API.Controllers
                 folder.FolderName
             });
         }
+
+        // GET api/folders/count
+        // Saját függvény
+        // Csoda, ha jövőre nem bukok meg a vizsgán #2 - Örs
+        [HttpGet("count")]
+        public async Task<IActionResult> CountFolders()
+        {
+            var count = await db.Folders.CountAsync();
+
+            return Ok(count);
+        }
     }
 }

@@ -137,5 +137,32 @@ namespace API.Controllers
 
             return Ok(new { message = "Jegyzet sikeresen törölve." });
         }
+
+        // GET api/notes/count
+        // Saját függvény #1
+        // Csoda, ha jövőre nem bukok meg a vizsgán #3 - Örs
+        [HttpGet("count")]
+        public async Task<IActionResult> CountNotes()
+        {
+            var count = await db.Notes.CountAsync();
+
+            return Ok(count);
+        }
+
+        // GET api/notes/{id}/count
+        // Saját függvény #2
+        // Csoda, ha jövőre nem bukok meg a vizsgán #4 - Örs
+        [HttpGet("{id:int}/count")]
+        public async Task<IActionResult> CountNoteAttachments(int id)
+        {
+            if (!await db.Notes.AnyAsync(n => n.NoteId == id))
+            {
+                return NotFound(new { message = "A jegyzet nem található." });
+            }
+
+            var count = await db.Attachments.CountAsync(a => a.NoteId == id);
+
+            return Ok(count);
+        }
     }
 }
