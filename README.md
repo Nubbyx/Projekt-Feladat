@@ -8,6 +8,8 @@ Egyszerű jegyzetelő asztali alkalmazás.
 docker run --name Projekt -e MYSQL_ROOT_PASSWORD=jelszo -e MYSQL_DATABASE=database -p 3306:3306 -d mysql:latest
 ```
 
+A kapcsolati sztring az `API/appsettings.json` `ConnectionStrings:DefaultConnection` értéke (a fenti Docker-parancshoz van igazítva). Az adatbázis-séma létrehozása: `dotnet ef database update` az `API` mappában.
+
 ### Használat
 
 | Művelet | Hogyan |
@@ -31,4 +33,6 @@ docker run --name Projekt -e MYSQL_ROOT_PASSWORD=jelszo -e MYSQL_DATABASE=databa
 | `PUT` | `/api/notes/{id}` | Jegyzet frissítése (cím, tartalom, mappa) |
 | `DELETE` | `/api/notes/{id}` | Jegyzet törlése |
 | `GET` | `/api/attachments` | Az összes csatolmány |
+| `GET` | `/api/attachments/{id}` | Csatolmány letöltése |
 | `POST` | `/api/attachments/{noteId}` | Csatolmány feltöltése (`multipart/form-data`, a fájl mezője: `file`) |
+| `DELETE` | `/api/attachments/{id}` | Csatolmány törlése |
