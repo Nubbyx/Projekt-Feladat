@@ -1,4 +1,6 @@
 ﻿using Models;
+using Microsoft.Win32;
+using System.IO;
 using System.ComponentModel;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -122,7 +124,7 @@ namespace Frontend
         {
             if (sender is MenuItem mi && mi.DataContext is FolderViewModel fvm)
             {
-                var res = MessageBox.Show($"Biztosan törlöd a(z) {fvm.FolderName} mappát és a benne lévő jegyzeteket?", "Törlés", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                var res = MessageBox.Show($"Biztosan törli a(z) {fvm.FolderName} mappát és a benne lévő jegyzeteket?", "Törlés", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (res == MessageBoxResult.Yes)
                 {
                     foreach (var n in fvm.Notes) _openedNotes.Remove(n.NoteId);
@@ -137,7 +139,7 @@ namespace Frontend
         {
             if (sender is MenuItem mi && mi.DataContext is NoteViewModel nvm)
             {
-                var res = MessageBox.Show($"Biztosan törlöd a(z) {nvm.Title} jegyzetet?", "Törlés", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                var res = MessageBox.Show($"Biztosan törli a(z) {nvm.Title} jegyzetet?", "Törlés", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (res == MessageBoxResult.Yes)
                 {
                     _openedNotes.Remove(nvm.NoteId);
@@ -176,7 +178,7 @@ namespace Frontend
             }
         }
 
-        // ----- Jegyzet -----
+        // ----- Jegyzete -----
 
         private void EnableNoteRename_Click(object sender, RoutedEventArgs e)
         {
@@ -221,7 +223,7 @@ namespace Frontend
             if (newTitle.Length is < 1 or > 50)
             {
                 nvm.Title = oldTitle;
-                MessageBox.Show("A név 1 és 50 karakter közötti lehet.", "Hiba", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("A jegyzetnev 1 és 50 karakter közötti lehet.", "Hiba", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -289,7 +291,7 @@ namespace Frontend
             if (newName.Length is < 1 or > 50)
             {
                 fvm.FolderName = oldName;
-                MessageBox.Show("A név 1 és 50 karakter közötti lehet.", "Hiba", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("A folder neve 1 és 50 karakter közötti lehet.", "Hiba", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -309,6 +311,148 @@ namespace Frontend
             fvm.OriginalFolder.FolderName = oldName;
             fvm.FolderName = oldName;
             MessageBox.Show("Nem sikerült menteni a mappa új nevét.", "Hiba", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+
+
+        // ----- Csatolmányok -----
+
+        private async void AddAttachment_Click(object sender, RoutedEventArgs e)
+        {
+            if (CurrentNote == null)
+            {
+                MessageBox.Show("Először válasszon ki egy jegyzetet.", "Csatolmány",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new OpenFileDialog
+            {
+                Title = "Csatolmány kiválasztása",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+            if (dialog.ShowDialog() != true) return;
+
+            var fileName = Path.GetFileName(dialog.FileName);
+            if (fileName.Length > 50)
+            {
+                MessageBox.Show("A fájlnév legfeljebb 50 karakter lehet. Nevezze át a fájlt, majd próbáld újra.",
+                    "Túl hosszú fájlnév", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                using var form = new MultipartFormDataContent();
+                using var stream = System.IO.File.OpenRead(dialog.FileName);
+                using var fileContent = new StreamContent(stream);
+                form.Add(fileContent, "file", fileName);
+
+                var response = await _http.PostAsync($"api/attachments/{CurrentNote.NoteId}", form);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    MessageBox.Show($"A feltöltés nem sikerült.\n{error}", "Hiba",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                await RefreshCurrentNoteAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"A fájl feltöltése nem sikerült: {ex.Message}", "Hiba",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void DownloadAttachment_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.DataContext is not Attachment attachment)
+                return;
+
+            var dialog = new SaveFileDialog
+            {
+                FileName = attachment.Name ?? "csatolmany",
+                Title = "Csatolmány mentése"
+            };
+            if (dialog.ShowDialog() != true) return;
+
+            try
+            {
+                var response = await _http.GetAsync($"api/attachments/{attachment.AttachmentId}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    MessageBox.Show("A csatolmány letöltése nem sikerült.", "Hiba",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var bytes = await response.Content.ReadAsByteArrayAsync();
+                await System.IO.File.WriteAllBytesAsync(dialog.FileName, bytes);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"A letöltés nem sikerült: {ex.Message}", "Hiba",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void DeleteAttachment_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.DataContext is not Attachment attachment)
+                return;
+
+            var result = MessageBox.Show(
+                $"Biztosan törli a(z) \"{attachment.Name}\" csatolmányt?",
+                "Csatolmány törlése", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (result != MessageBoxResult.Yes) return;
+
+            try
+            {
+                var response = await _http.DeleteAsync($"api/attachments/{attachment.AttachmentId}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    MessageBox.Show("A csatolmány törlése sikertelen.", "Hiba",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                await RefreshCurrentNoteAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"A törlés nem sikerült: {ex.Message}", "Hiba",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task RefreshCurrentNoteAsync()
+        {
+            if (CurrentNote == null) return;
+
+            var noteId = CurrentNote.NoteId;
+            var notes = await _http.GetFromJsonAsync<List<Note>>("api/notes") ?? new();
+            var refreshed = notes.FirstOrDefault(n => n.NoteId == noteId);
+            if (refreshed == null) return;
+
+            // A szerkesztés alatt álló tartalmat megőrizzük, csak a csatolmánylistát frissítjük.
+            refreshed.Title = CurrentNote.Title;
+            refreshed.Content = CurrentNote.Content;
+            refreshed.FolderId = CurrentNote.FolderId;
+
+            _openedNotes[noteId] = refreshed;
+            CurrentNote = refreshed;
+
+            foreach (var folder in sp_Files.Items.OfType<FolderViewModel>())
+            {
+                var noteVm = folder.Notes.FirstOrDefault(n => n.NoteId == noteId);
+                if (noteVm != null)
+                {
+                    noteVm.OriginalNote = refreshed;
+                    noteVm.Title = refreshed.Title ?? "Névtelen jegyzet";
+                    noteVm.Content = refreshed.Content ?? "";
+                    break;
+                }
+            }
         }
 
         // Mentés csak kilépéskor: az összes megnyitott jegyzet.
@@ -337,7 +481,7 @@ namespace Frontend
             if (errors.Count > 0)
             {
                 var res = MessageBox.Show(
-                    "Nem sikerült minden jegyzetet elmenteni:\n\n" + string.Join("\n", errors) + "\n\nKilépsz mentés nélkül?",
+                    "Nem sikerült minden jegyzetet elmenteni:\n\n" + string.Join("\n", errors) + "\n\nKilép mentés nélkül?",
                     "Mentési hiba", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (res == MessageBoxResult.No) e.Cancel = true;
             }

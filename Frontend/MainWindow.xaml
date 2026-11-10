@@ -10,27 +10,33 @@
         ResizeMode="NoResize"
         Loaded="Window_Loaded"
         Closing="Window_Closing">
-    <Grid>
+    <Grid Margin="5">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="25*" />
             <ColumnDefinition Width="75*" />
         </Grid.ColumnDefinitions>
 
-        <Grid Grid.Column="0">
+        <Grid Grid.Column="0" Background="#EADCCB">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <Button Grid.Row="0" 
-                    Content="+" 
-                    FontSize="20" 
-                    FontWeight="Bold" 
-                    Height="40" 
-                    Margin="2"
+            <Button Grid.Row="0"
+                    Content="+"
+                    FontSize="20"
+                    FontWeight="Bold"
+                    Height="40"
+                    Margin="8"
+                    Background="#A67B5B"
+                    Foreground="White"
+                    BorderThickness="0"
                     Click="AddFolder_Click"/>
 
-            <ListView Grid.Row="1" x:Name="sp_Files" Margin="0,2,0,0">
+            <ListView Grid.Row="1" x:Name="sp_Files" Margin="0,2,0,0"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -40,10 +46,10 @@
 
                 <ListView.ItemTemplate>
                     <DataTemplate>
-                        <Expander IsExpanded="{Binding IsExpanded}">
+                        <Expander IsExpanded="{Binding IsExpanded}" Margin="4,2" Foreground="#4A3426">
                             <Expander.Header>
                                 <Grid>
-                                    <TextBlock Text="{Binding FolderName}">
+                                    <TextBlock Text="{Binding FolderName}" FontWeight="SemiBold">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Visibility" Value="Visible"/>
@@ -56,7 +62,9 @@
                                         </TextBlock.Style>
                                     </TextBlock>
 
-                                    <TextBox Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}" 
+                                    <TextBox Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}"
+                                             Background="#FFFBF5"
+                                             BorderBrush="#B8926F"
                                              KeyDown="FolderRenameTextBox_KeyDown"
                                              LostFocus="FolderRenameTextBox_LostFocus"
                                              IsVisibleChanged="RenameTextBox_IsVisibleChanged">
@@ -86,7 +94,14 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="10,2,2,2">
-                                            <Button Content="{Binding Title}" HorizontalAlignment="Stretch" Click="NoteButton_Click">
+                                            <Button Content="{Binding Title}"
+                                                    HorizontalAlignment="Stretch"
+                                                    HorizontalContentAlignment="Left"
+                                                    Padding="10,6"
+                                                    Background="#F5EEE6"
+                                                    Foreground="#4A3426"
+                                                    BorderThickness="3"
+                                                    Click="NoteButton_Click">
                                                 <Button.ContextMenu>
                                                     <ContextMenu>
                                                         <MenuItem Header="Átnevezés" Click="EnableNoteRename_Click" CommandParameter="{Binding}"/>
@@ -106,9 +121,11 @@
                                                 </Button.Style>
                                             </Button>
 
-                                            <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" 
+                                            <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
                                                      HorizontalAlignment="Stretch"
                                                      VerticalContentAlignment="Center"
+                                                     Background="#FFFBF5"
+                                                     BorderBrush="#B8926F"
                                                      KeyDown="NoteRenameTextBox_KeyDown"
                                                      LostFocus="NoteRenameTextBox_LostFocus"
                                                      IsVisibleChanged="RenameTextBox_IsVisibleChanged">
@@ -133,10 +150,56 @@
             </ListView>
         </Grid>
 
-        <TextBox Grid.Column="1" 
+        <TextBox Grid.Column="1"
                  Text="{Binding CurrentNote.Content, UpdateSourceTrigger=PropertyChanged}"
                  AcceptsReturn="True"
                  TextWrapping="Wrap"
-                 VerticalContentAlignment="Top"/>
+                 VerticalContentAlignment="Top"
+                 VerticalScrollBarVisibility="Auto"
+                 Background="#FFFBF5"
+                 Foreground="#4A3426"
+                 CaretBrush="#A67B5B"
+                 BorderThickness="0"
+                 FontSize="16"
+                 Padding="24"/>
+        
+
+        <Border 
+        Grid.Column="1" Grid.Row="1" Margin="0,10,0,0" Padding="10"
+        Background="#FFFBF5" BorderBrush="#C9AE8E" BorderThickness="1"
+        CornerRadius="5">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,8">
+                    <TextBlock Text="Csatolmányok" FontSize="16" FontWeight="SemiBold"
+                       Foreground="#493629" VerticalAlignment="Center"/>
+                    <Button Content="＋ Fájl csatolása" DockPanel.Dock="Right"
+                    Padding="10,5" Background="#A77C55" Foreground="#FFFBF5"
+                    BorderBrush="#8E6848" Click="AddAttachment_Click"
+                   />
+                </DockPanel>
+                <ListBox ItemsSource="{Binding CurrentNote.Attachments}"
+                 MinHeight="55" MaxHeight="125"
+                 Background="#FFF9F0" Foreground="#4A3426"
+                 BorderBrush="#C9AE8E">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel Margin="4">
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                                    <Button Content="Letöltés" Margin="3,0" Padding="7,3"
+                                    Background="#D8C1A5" Foreground="#4A3426"
+                                    Click="DownloadAttachment_Click"/>
+                                    <Button Content="Törlés" Margin="3,0" Padding="7,3"
+                                    Background="#A67B5B" Foreground="#3F2D25"
+                                    Click="DeleteAttachment_Click"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+        </Border>
+        
     </Grid>
 </Window>
