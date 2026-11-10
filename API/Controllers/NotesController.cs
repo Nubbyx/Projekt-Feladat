@@ -7,33 +7,72 @@ namespace API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class NotesController : Controller
+    public class NotesController : ControllerBase
     {
-        public AppDbContext db;
+        private readonly AppDbContext db;
 
-        public NotesController()
+        public NotesController(AppDbContext db)
         {
-            db = new AppDbContext();
+            this.db = db;
         }
 
+        // A csatolmányok fájltartalmát nem töltjük be (csak az azonosítót és a nevet),
+        // különben minden listázás az összes feltöltött fájlt áthúzná az adatbázisból.
         [HttpGet]
-        public IActionResult GetNotes()
+        public async Task<IActionResult> GetNotes()
         {
-            return Ok(db.Notes.Include(n => n.Attachments).ToList());
+            var rows = await db.Notes
+                .AsNoTracking()
+                .Select(n => new
+                {
+                    n.NoteId,
+                    n.Title,
+                    n.Content,
+                    n.FolderId,
+                    Attachments = n.Attachments
+                        .Select(a => new { a.AttachmentId, a.Name, a.NoteId })
+                        .ToList()
+                })
+                .ToListAsync();
+
+            var notes = rows.Select(r => new Note
+            {
+                NoteId = r.NoteId,
+                Title = r.Title,
+                Content = r.Content,
+                FolderId = r.FolderId,
+                Attachments = r.Attachments
+                    .Select(a => new Attachment { AttachmentId = a.AttachmentId, Name = a.Name, NoteId = a.NoteId })
+                    .ToList()
+            }).ToList();
+
+            return Ok(notes);
         }
 
         [HttpPost]
         public async Task<IActionResult> CreateNote(Note note)
         {
-            db.Notes.Add(note);
+            if (note.FolderId != null && !await db.Folders.AnyAsync(f => f.FolderId == note.FolderId))
+            {
+                return BadRequest(new { message = "A megadott mappa nem létezik." });
+            }
 
+            // Csak a saját mezőit vesszük át (se mappa-objektumot, se csatolmányt nem hozhat létre a kliens).
+            var newNote = new Note
+            {
+                Title = note.Title,
+                Content = note.Content,
+                FolderId = note.FolderId
+            };
+
+            db.Notes.Add(newNote);
             await db.SaveChangesAsync();
 
             return Ok(new
             {
                 message = "Jegyzet sikeresen létrehozva!",
-                note.NoteId,
-                note.Title
+                newNote.NoteId,
+                newNote.Title
             });
         }
 
@@ -45,6 +84,11 @@ namespace API.Controllers
             if (existingNote == null)
             {
                 return NotFound(new { message = "A jegyzet nem található." });
+            }
+
+            if (updatedNote.FolderId != null && !await db.Folders.AnyAsync(f => f.FolderId == updatedNote.FolderId))
+            {
+                return BadRequest(new { message = "A megadott mappa nem létezik." });
             }
 
             existingNote.Title = updatedNote.Title;

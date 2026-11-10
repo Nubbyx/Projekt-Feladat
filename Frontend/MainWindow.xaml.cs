@@ -58,6 +58,10 @@ namespace Frontend
                 var folders = await _http.GetFromJsonAsync<List<Folder>>("api/folders") ?? new();
                 var notes = await _http.GetFromJsonAsync<List<Note>>("api/notes") ?? new();
 
+                // Újratöltéskor a már összecsukott mappák maradjanak összecsukva.
+                var expandedStates = (sp_Files.ItemsSource as IEnumerable<FolderViewModel>)?
+                    .ToDictionary(x => x.FolderId, x => x.IsExpanded) ?? new Dictionary<int, bool>();
+
                 var folderViewModels = new List<FolderViewModel>();
 
                 foreach (var f in folders)
@@ -67,7 +71,7 @@ namespace Frontend
                         FolderId = f.FolderId,
                         FolderName = f.FolderName ?? "Névtelen mappa",
                         OriginalFolder = f,
-                        IsExpanded = true
+                        IsExpanded = !expandedStates.TryGetValue(f.FolderId, out var wasExpanded) || wasExpanded
                     };
 
                     var folderNotes = notes.Where(n => n.FolderId == f.FolderId).ToList();
@@ -95,18 +99,34 @@ namespace Frontend
 
         private async void AddFolder_Click(object sender, RoutedEventArgs e)
         {
-            var newFolder = new Folder { FolderName = "Új mappa" };
-            var response = await _http.PostAsJsonAsync("api/folders", newFolder);
-            if (response.IsSuccessStatusCode) await LoadDataAsync();
+            try
+            {
+                var newFolder = new Folder { FolderName = "Új mappa" };
+                var response = await _http.PostAsJsonAsync("api/folders", newFolder);
+                if (response.IsSuccessStatusCode) await LoadDataAsync();
+                else ShowError("A mappa létrehozása nem sikerült.");
+            }
+            catch (HttpRequestException ex)
+            {
+                ShowError($"A mappa létrehozása nem sikerült: {ex.Message}");
+            }
         }
 
         private async void AddNoteToFolder_Click(object sender, RoutedEventArgs e)
         {
             if (sender is MenuItem mi && mi.DataContext is FolderViewModel fvm)
             {
-                var newNote = new Note { Title = "Új jegyzet", Content = "", FolderId = fvm.FolderId };
-                var response = await _http.PostAsJsonAsync("api/notes", newNote);
-                if (response.IsSuccessStatusCode) await LoadDataAsync();
+                try
+                {
+                    var newNote = new Note { Title = "Új jegyzet", Content = "", FolderId = fvm.FolderId };
+                    var response = await _http.PostAsJsonAsync("api/notes", newNote);
+                    if (response.IsSuccessStatusCode) await LoadDataAsync();
+                    else ShowError("A jegyzet létrehozása nem sikerült.");
+                }
+                catch (HttpRequestException ex)
+                {
+                    ShowError($"A jegyzet létrehozása nem sikerült: {ex.Message}");
+                }
             }
         }
 
@@ -120,6 +140,9 @@ namespace Frontend
             }
         }
 
+        private static void ShowError(string message) =>
+            MessageBox.Show(message, "Hiba", MessageBoxButton.OK, MessageBoxImage.Error);
+
         private async void DeleteFolder_Click(object sender, RoutedEventArgs e)
         {
             if (sender is MenuItem mi && mi.DataContext is FolderViewModel fvm)
@@ -127,10 +150,27 @@ namespace Frontend
                 var res = MessageBox.Show($"Biztosan törli a(z) {fvm.FolderName} mappát és a benne lévő jegyzeteket?", "Törlés", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (res == MessageBoxResult.Yes)
                 {
-                    foreach (var n in fvm.Notes) _openedNotes.Remove(n.NoteId);
-                    await _http.DeleteAsync($"api/folders/{fvm.FolderId}");
+                    try
+                    {
+                        var response = await _http.DeleteAsync($"api/folders/{fvm.FolderId}");
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            ShowError("A mappa törlése nem sikerült.");
+                            return;
+                        }
+                    }
+                    catch (HttpRequestException ex)
+                    {
+                        ShowError($"A mappa törlése nem sikerült: {ex.Message}");
+                        return;
+                    }
+
+                    // A memóriában tartott példányokat csak sikeres törlés után dobjuk el.
+                    var deletedIds = fvm.Notes.Select(n => n.NoteId).ToHashSet();
+                    foreach (var id in deletedIds) _openedNotes.Remove(id);
+                    if (CurrentNote != null && deletedIds.Contains(CurrentNote.NoteId)) CurrentNote = null;
+
                     await LoadDataAsync();
-                    CurrentNote = null;
                 }
             }
         }
@@ -142,10 +182,24 @@ namespace Frontend
                 var res = MessageBox.Show($"Biztosan törli a(z) {nvm.Title} jegyzetet?", "Törlés", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (res == MessageBoxResult.Yes)
                 {
+                    try
+                    {
+                        var response = await _http.DeleteAsync($"api/notes/{nvm.NoteId}");
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            ShowError("A jegyzet törlése nem sikerült.");
+                            return;
+                        }
+                    }
+                    catch (HttpRequestException ex)
+                    {
+                        ShowError($"A jegyzet törlése nem sikerült: {ex.Message}");
+                        return;
+                    }
+
                     _openedNotes.Remove(nvm.NoteId);
-                    await _http.DeleteAsync($"api/notes/{nvm.NoteId}");
-                    await LoadDataAsync();
                     if (CurrentNote?.NoteId == nvm.NoteId) CurrentNote = null;
+                    await LoadDataAsync();
                 }
             }
         }
@@ -456,34 +510,58 @@ namespace Frontend
         }
 
         // Mentés csak kilépéskor: az összes megnyitott jegyzet.
-        private void Window_Closing(object sender, CancelEventArgs e)
-        {
-            var errors = new List<string>();
+        // A mentés aszinkron fut (nem fagyasztja le az ablakot); sikeres mentés után zárjuk be az ablakot.
+        private bool _closeConfirmed;
+        private bool _isSavingOnClose;
 
-            foreach (var note in _openedNotes.Values)
+        private async void Window_Closing(object sender, CancelEventArgs e)
+        {
+            if (_closeConfirmed) return;
+
+            e.Cancel = true;                 // egyelőre nem zárunk be
+            if (_isSavingOnClose) return;    // dupla kattintás az X-en
+            _isSavingOnClose = true;
+
+            // Kilépünk a Closing eseményből, mielőtt bármi mást csinálnánk: a Close() hívása
+            // a Closing eseménykezelőn belül kivételt dobna, ha nincs mit menteni (nincs await).
+            await Task.Yield();
+
+            try
             {
-                try
+                var errors = new List<string>();
+
+                foreach (var note in _openedNotes.Values.ToList())
                 {
-                    var response = _http.PutAsJsonAsync($"api/notes/{note.NoteId}", note).GetAwaiter().GetResult();
-                    if (!response.IsSuccessStatusCode)
+                    try
                     {
-                        var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-                        if (body.Length > 300) body = body[..300] + "…";
-                        errors.Add($"„{note.Title}”: {(int)response.StatusCode} {body}");
+                        var response = await _http.PutAsJsonAsync($"api/notes/{note.NoteId}", note);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            var body = await response.Content.ReadAsStringAsync();
+                            if (body.Length > 300) body = body[..300] + "…";
+                            errors.Add($"„{note.Title}”: {(int)response.StatusCode} {body}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add($"„{note.Title}”: {ex.Message}");
                     }
                 }
-                catch (Exception ex)
-                {
-                    errors.Add($"„{note.Title}”: {ex.Message}");
-                }
-            }
 
-            if (errors.Count > 0)
+                if (errors.Count > 0)
+                {
+                    var res = MessageBox.Show(
+                        "Nem sikerült minden jegyzetet elmenteni:\n\n" + string.Join("\n", errors) + "\n\nKilép mentés nélkül?",
+                        "Mentési hiba", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    if (res == MessageBoxResult.No) return;   // marad az ablak nyitva
+                }
+
+                _closeConfirmed = true;
+                Close();
+            }
+            finally
             {
-                var res = MessageBox.Show(
-                    "Nem sikerült minden jegyzetet elmenteni:\n\n" + string.Join("\n", errors) + "\n\nKilép mentés nélkül?",
-                    "Mentési hiba", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                if (res == MessageBoxResult.No) e.Cancel = true;
+                _isSavingOnClose = false;
             }
         }
     }

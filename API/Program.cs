@@ -1,3 +1,5 @@
+using API.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace API
 {
@@ -14,6 +16,10 @@ namespace API
                 {
                     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
                 });
+            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("Hiányzik a ConnectionStrings:DefaultConnection beállítás az appsettings.json-ból.");
+            builder.Services.AddDbContext<AppDbContext>(options => options.UseMySQL(connectionString));
+
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
 

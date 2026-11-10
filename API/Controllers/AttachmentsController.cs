@@ -7,22 +7,43 @@ namespace API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class AttachmentsController : Controller
+    public class AttachmentsController : ControllerBase
     {
-        public AppDbContext db;
+        private readonly AppDbContext db;
 
-        public AttachmentsController()
+        public AttachmentsController(AppDbContext db)
         {
-            db = new AppDbContext();
+            this.db = db;
         }
 
+        // A fájl tartalma nélkül listáz (azt a letöltő végpont adja vissza).
         [HttpGet]
-        public IActionResult GetAttachments()
+        public async Task<IActionResult> GetAttachments()
         {
-            return Ok(db.Attachments);
+            var attachments = await db.Attachments
+                .AsNoTracking()
+                .Select(a => new { a.AttachmentId, a.Name, a.NoteId })
+                .ToListAsync();
+
+            return Ok(attachments);
         }
 
-        [HttpPost("{noteId}")]
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> DownloadAttachment(int id)
+        {
+            var attachment = await db.Attachments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.AttachmentId == id);
+
+            if (attachment == null)
+            {
+                return NotFound("A csatolmány nem található.");
+            }
+
+            return File(attachment.File, "application/octet-stream", attachment.Name);
+        }
+
+        [HttpPost("{noteId:int}")]
         public async Task<IActionResult> UploadAttachment(int noteId, IFormFile file)
         {
             if (file == null || file.Length == 0)
@@ -30,9 +51,13 @@ namespace API.Controllers
                 return BadRequest("Nincs file csatolva.");
             }
 
-            var note = await db.Notes.Include(n => n.Attachments).FirstOrDefaultAsync(n => n.NoteId == noteId);
+            var fileName = Path.GetFileName(file.FileName);
+            if (fileName.Length is < 1 or > 50)
+            {
+                return BadRequest("A fájlnév 1 és 50 karakter közötti lehet.");
+            }
 
-            if (note == null)
+            if (!await db.Notes.AnyAsync(n => n.NoteId == noteId))
             {
                 return NotFound("A jegyzet nem található.");
             }
@@ -46,13 +71,12 @@ namespace API.Controllers
 
             var attachment = new Attachment
             {
-                Name = file.FileName,
+                Name = fileName,
                 File = fileBytes,
-                NoteId = note.NoteId
+                NoteId = noteId
             };
 
-            note.Attachments.Add(attachment);
-
+            db.Attachments.Add(attachment);
             await db.SaveChangesAsync();
 
             return Ok(new
@@ -61,6 +85,22 @@ namespace API.Controllers
                 attachment.AttachmentId,
                 attachment.Name
             });
+        }
+
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> DeleteAttachment(int id)
+        {
+            var attachment = await db.Attachments.FindAsync(id);
+
+            if (attachment == null)
+            {
+                return NotFound(new { message = "A csatolmány nem található." });
+            }
+
+            db.Attachments.Remove(attachment);
+            await db.SaveChangesAsync();
+
+            return Ok(new { message = "Csatolmány sikeresen törölve." });
         }
     }
 }

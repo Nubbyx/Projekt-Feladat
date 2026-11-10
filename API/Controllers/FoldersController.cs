@@ -9,30 +9,34 @@ namespace API.Controllers
     [Route("api/[controller]")]
     public class FoldersController : ControllerBase
     {
-        public AppDbContext db;
+        private readonly AppDbContext db;
 
-        public FoldersController()
+        public FoldersController(AppDbContext db)
         {
-            db = new AppDbContext();
+            this.db = db;
         }
 
         [HttpGet]
-        public IActionResult GetAllFolders()
+        public async Task<IActionResult> GetAllFolders()
         {
-            var folders = db.Folders.Include(f => f.Notes).ToList();
+            var folders = await db.Folders.AsNoTracking().Include(f => f.Notes).ToListAsync();
             return Ok(folders);
         }
 
         [HttpPost]
-        public IActionResult CreateFolders(Folder folder)
+        public async Task<IActionResult> CreateFolders(Folder folder)
         {
-            db.Folders.Add(folder);
-            db.SaveChanges();
+            // Csak a nevet vesszük át: a kliens ne tudjon jegyzeteket "becsempészni" a mappával.
+            var newFolder = new Folder { FolderName = folder.FolderName };
+
+            db.Folders.Add(newFolder);
+            await db.SaveChangesAsync();
+
             return Ok(new
             {
                 message = "Mappa sikeresen létrehozva!",
-                folder.FolderId,
-                folder.FolderName
+                newFolder.FolderId,
+                newFolder.FolderName
             });
         }
 
@@ -58,17 +62,19 @@ namespace API.Controllers
         }
 
         [HttpDelete("{FolderId}")]
-        public IActionResult DeleteFolder(int FolderId)
+        public async Task<IActionResult> DeleteFolder(int FolderId)
         {
-            var folder = db.Folders.Include(f => f.Notes).FirstOrDefault(f => f.FolderId == FolderId);
+            var folder = await db.Folders.Include(f => f.Notes).FirstOrDefaultAsync(f => f.FolderId == FolderId);
             if (folder == null)
             {
                 return NotFound("A mappa nem található.");
             }
 
+            // A jegyzetek csatolmányait az adatbázis törli (cascade).
             db.Notes.RemoveRange(folder.Notes);
             db.Folders.Remove(folder);
-            db.SaveChanges();
+            await db.SaveChangesAsync();
+
             return Ok(new
             {
                 message = "Mappa sikeresen törölve!",
