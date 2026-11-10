@@ -1,10 +1,13 @@
-﻿using API.Data;
+using API.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Models;
 
 namespace API.Controllers
 {
+    /// <summary>
+    /// A mappák CRUD műveletei. Útvonal: api/folders.
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class FoldersController : ControllerBase
@@ -16,6 +19,10 @@ namespace API.Controllers
             this.db = db;
         }
 
+        // GET api/folders
+        // Az összes mappa a benne lévő jegyzetekkel együtt (Include = JOIN a Notes táblával).
+        // Megjegyzés: a Note.Folder visszahivatkozás miatt körkörös objektumgráf keletkezik; ezt a
+        // Program.cs-ben beállított ReferenceHandler.IgnoreCycles kezeli a JSON szerializálásnál.
         [HttpGet]
         public async Task<IActionResult> GetAllFolders()
         {
@@ -23,14 +30,16 @@ namespace API.Controllers
             return Ok(folders);
         }
 
+        // POST api/folders
+        // Új mappa létrehozása. Szándékosan új Folder objektumot építünk, és csak a nevet másoljuk át,
+        // így a kliens nem tudja előre megadni az azonosítót vagy a jegyzetek listáját (túlküldés elleni védelem).
         [HttpPost]
         public async Task<IActionResult> CreateFolders(Folder folder)
         {
-            // Csak a nevet vesszük át: a kliens ne tudjon jegyzeteket "becsempészni" a mappával.
             var newFolder = new Folder { FolderName = folder.FolderName };
 
             db.Folders.Add(newFolder);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(); // mentés után az adatbázis által generált FolderId már ki van töltve
 
             return Ok(new
             {
@@ -40,6 +49,8 @@ namespace API.Controllers
             });
         }
 
+        // PUT api/folders/{id}
+        // Mappa átnevezése. Csak a nevet írjuk felül, a mappa jegyzeteihez nem nyúlunk.
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateFolder(int id, [FromBody] Folder updatedFolder)
         {
@@ -61,6 +72,11 @@ namespace API.Controllers
             });
         }
 
+        // DELETE api/folders/{FolderId}
+        // Mappa törlése a benne lévő jegyzetekkel együtt.
+        // A jegyzeteket kézzel kell törölni, mert a Notes -> Folders idegen kulcs nem kaszkádos
+        // (a migráció szerint nincs onDelete: Cascade), így a mappa törlése önmagában hibát adna.
+        // A jegyzetek csatolmányai viszont az adatbázisban kaszkádosan törlődnek (Attachments -> Notes: Cascade).
         [HttpDelete("{FolderId}")]
         public async Task<IActionResult> DeleteFolder(int FolderId)
         {
@@ -70,10 +86,9 @@ namespace API.Controllers
                 return NotFound("A mappa nem található.");
             }
 
-            // A jegyzetek csatolmányait az adatbázis törli (cascade).
             db.Notes.RemoveRange(folder.Notes);
             db.Folders.Remove(folder);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(); // egyetlen tranzakcióban törlődik a jegyzet és a mappa is
 
             return Ok(new
             {

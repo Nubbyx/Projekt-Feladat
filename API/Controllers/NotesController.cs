@@ -1,10 +1,13 @@
-﻿using API.Data;
+using API.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Models;
 
 namespace API.Controllers
 {
+    /// <summary>
+    /// A jegyzetek CRUD műveletei. Útvonal: api/notes.
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class NotesController : ControllerBase
@@ -16,8 +19,11 @@ namespace API.Controllers
             this.db = db;
         }
 
-        // A csatolmányok fájltartalmát nem töltjük be (csak az azonosítót és a nevet),
-        // különben minden listázás az összes feltöltött fájlt áthúzná az adatbázisból.
+        // GET api/notes
+        // Az összes jegyzet a csatolmányok metaadataival (név, azonosító), de a fájlok tartalma nélkül.
+        // Két lépésben dolgozunk: előbb anonim típusra vetítünk (így az EF nem húzza le a nagy longblob
+        // oszlopot), aztán memóriában építjük fel a valódi Note/Attachment objektumokat, mert
+        // LINQ-to-SQL lekérdezésben nem lehet közvetlenül "new Note { ... }"-t vetíteni ilyen beágyazott módon.
         [HttpGet]
         public async Task<IActionResult> GetNotes()
         {
@@ -49,6 +55,9 @@ namespace API.Controllers
             return Ok(notes);
         }
 
+        // POST api/notes
+        // Új jegyzet létrehozása. A FolderId nullable, így mappa nélküli jegyzet is lehet,
+        // de ha meg van adva, annak létező mappára kell mutatnia.
         [HttpPost]
         public async Task<IActionResult> CreateNote(Note note)
         {
@@ -57,7 +66,8 @@ namespace API.Controllers
                 return BadRequest(new { message = "A megadott mappa nem létezik." });
             }
 
-            // Csak a saját mezőit vesszük át (se mappa-objektumot, se csatolmányt nem hozhat létre a kliens).
+            // Csak a szükséges mezőket másoljuk át (az azonosítót az adatbázis generálja,
+            // a csatolmányokat pedig külön végponton keresztül lehet hozzáadni).
             var newNote = new Note
             {
                 Title = note.Title,
@@ -76,6 +86,9 @@ namespace API.Controllers
             });
         }
 
+        // PUT api/notes/{id}
+        // Jegyzet teljes frissítése (cím, tartalom, mappa). A kliens ezt hívja átnevezéskor és
+        // az ablak bezárásakor is. A csatolmányokat itt nem módosítjuk.
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateNote(int id, [FromBody] Note updatedNote)
         {
@@ -86,6 +99,7 @@ namespace API.Controllers
                 return NotFound(new { message = "A jegyzet nem található." });
             }
 
+            // Áthelyezéskor (FolderId változik) is ellenőrizzük, hogy a célmappa létezik.
             if (updatedNote.FolderId != null && !await db.Folders.AnyAsync(f => f.FolderId == updatedNote.FolderId))
             {
                 return BadRequest(new { message = "A megadott mappa nem létezik." });
@@ -105,6 +119,9 @@ namespace API.Controllers
             });
         }
 
+        // DELETE api/notes/{id}
+        // A jegyzet csatolmányai az adatbázisban kaszkádosan törlődnek (Attachments -> Notes: Cascade),
+        // ezért itt nem kell őket külön eltávolítani.
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteNote(int id)
         {
